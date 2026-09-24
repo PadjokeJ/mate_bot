@@ -1,12 +1,15 @@
 use diesel::prelude::*;
 use dotenvy::dotenv;
 use std::env;
-use teloxide::utils::command::{self, BotCommands};
+use teloxide::types::{User};
+use teloxide::utils::command::{BotCommands};
 use teloxide::{prelude::*};
 
 use mate_bot::models::*;
 use mate_bot::schema::allowed_chats::dsl::*;
 use mate_bot::schema::mates::dsl::*;
+
+const ADMINS: &'static [u64] = &[8322506629];
 
 #[derive(BotCommands, Clone)]
 #[command(
@@ -23,9 +26,9 @@ enum Command {
     #[command(description = "Enable chat to count matés")]
     Enable,
     #[command(description = "Fact checked TRUE maté by real argentinian patriots")]
-    Add,
+    Add(i32),
     #[command(description = "Remove a FAKE maté")]
-    Remove,
+    Remove(i32),
     #[command(description = "This bot is licensed AGPL, check out the source code")]
     Source,
 }
@@ -35,51 +38,54 @@ pub fn connect() -> SqliteConnection {
     SqliteConnection::establish(&db_url).unwrap()
 }
 
+fn update_mate_count(conn: &mut SqliteConnection, telegram_user: &User, change: i32) {
+    let user_id = telegram_user.id.0 as i64;
+
+    let db_user = mates
+        .find(user_id)
+        .select(Mates::as_select())
+        .load(conn);
+
+    match db_user {
+        Ok(u) if u.len() >= 1 => {
+            println!("updating user");
+            let u = &u[0];
+
+            diesel::update(mates.find(u.id))
+                .set(mate_bot::schema::mates::count.eq(count + change))
+                .execute(conn)
+                .unwrap();
+        }
+        _ => {
+            println!("creating initial maté");
+            let new_data = Mates {
+                id: user_id,
+                display_name: telegram_user.full_name().to_string(),
+                count: change,
+            };
+
+            diesel::insert_into(mate_bot::schema::mates::table)
+                .values(&new_data)
+                .execute(conn)
+                .unwrap();
+        }
+    };
+}
+
 async fn photo_handler(_: Bot, msg: Message) -> ResponseResult<()> {
     let conn = &mut connect();
 
     println!("handling photos");
 
-    let sender = match &msg.from {
-        Some(u) => u.id.0 as i64,
-        _ => 0,
-    };
     let chat = allowed_chats
         .find(msg.chat.id.0 as i64)
         .select(AllowedChats::as_select())
         .load(conn);
 
-    if sender != 0 && chat.is_ok() && chat.unwrap_or_else(|_| Vec::new()).len() > 0 {
-        println!("chat and sender izok");
-        let user = mates
-            .find(sender as i64)
-            .select(Mates::as_select())
-            .load(conn);
-
-        match user {
-            Ok(u) if u.len() >= 1 => {
-                println!("updating user");
-                let u = &u[0];
-
-                diesel::update(mates.find(u.id))
-                    .set(mate_bot::schema::mates::count.eq(count + 1))
-                    .execute(conn)
-                    .unwrap();
-            }
-            _ => {
-                println!("creating firts maté");
-                let user = msg.from.unwrap();
-                let new_data = Mates {
-                    id: user.id.0 as i64,
-                    display_name: user.full_name().to_string(),
-                    count: 1,
-                };
-
-                diesel::insert_into(mate_bot::schema::mates::table)
-                    .values(&new_data)
-                    .execute(conn)
-                    .unwrap();
-            }
+    if chat.is_ok() && chat.unwrap_or_else(|_| Vec::new()).len() > 0 {
+        match msg.from {
+            Some(telegram_user) => update_mate_count(conn, &telegram_user, 1),
+            None => {}
         };
     }
 
@@ -113,7 +119,7 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
             bot.send_message(msg.chat.id, lb).await?
         }
         Command::Enable => {
-            if msg.from.clone().unwrap().id.0 == 8322506629 {
+            if ADMINS.contains(&msg.from.as_ref().unwrap().id.0) {
                 let chat = allowed_chats
                     .find(msg.chat.id.0 as i64)
                     .select(AllowedChats::as_select())
@@ -157,12 +163,44 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
                 .await?
             }
         }
+        Command::Add(change) => {
+            if !ADMINS.contains(&msg.from.as_ref().unwrap().id.0) {
+                bot.send_message(msg.chat.id, "Not an admin!!")
+                    .await?;
+                return Ok(())
+            }
+            match msg.reply_to_message() {
+                Some(replied) => {
+                    update_mate_count(conn, replied.from.as_ref().unwrap(), change);
+                    bot.send_message(msg.chat.id, format!("Added {} maté to user", change))
+                        .await?
+                }
+                None => {
+                    bot.send_message(msg.chat.id, "Please reply to the target user")
+                        .await?
+                }
+            }
+        },
+        Command::Remove(change) => {
+            if !ADMINS.contains(&msg.from.as_ref().unwrap().id.0) {
+                bot.send_message(msg.chat.id, "Not an admin!!")
+                    .await?;
+                return Ok(())
+            }
+            match msg.reply_to_message() {
+                Some(replied) => {
+                    update_mate_count(conn, replied.from.as_ref().unwrap(), -change);
+                    bot.send_message(msg.chat.id, format!("Removed {} maté from user", change))
+                        .await?
+                }
+                None => {
+                    bot.send_message(msg.chat.id, "Please reply to the target user")
+                        .await?
+                }
+            }
+        },
         Command::Source => {
             bot.send_message(msg.chat.id, format!("See the license for this cool bot over at https://github.com/PadjokeJ/mate_bot"))
-                .await?
-        }
-        _ => {
-            bot.send_message(msg.chat.id, format!("Not implemented yet :<"))
                 .await?
         }
     };
