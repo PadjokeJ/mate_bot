@@ -1,9 +1,10 @@
 use diesel::prelude::*;
 use dotenvy::dotenv;
 use std::env;
-use teloxide::types::{User};
-use teloxide::utils::command::{BotCommands};
-use teloxide::{prelude::*};
+use teloxide::prelude::*;
+use teloxide::sugar::bot::BotMessagesExt;
+use teloxide::types::{ReactionType, User};
+use teloxide::utils::command::BotCommands;
 
 use mate_bot::models::*;
 use mate_bot::schema::allowed_chats::dsl::*;
@@ -41,10 +42,7 @@ pub fn connect() -> SqliteConnection {
 fn update_mate_count(conn: &mut SqliteConnection, telegram_user: &User, change: i32) {
     let user_id = telegram_user.id.0 as i64;
 
-    let db_user = mates
-        .find(user_id)
-        .select(Mates::as_select())
-        .load(conn);
+    let db_user = mates.find(user_id).select(Mates::as_select()).load(conn);
 
     match db_user {
         Ok(u) if u.len() >= 1 => {
@@ -72,7 +70,7 @@ fn update_mate_count(conn: &mut SqliteConnection, telegram_user: &User, change: 
     };
 }
 
-async fn photo_handler(_: Bot, msg: Message) -> ResponseResult<()> {
+async fn photo_handler(bot: Bot, msg: Message) -> ResponseResult<()> {
     let conn = &mut connect();
 
     println!("handling photos");
@@ -82,12 +80,23 @@ async fn photo_handler(_: Bot, msg: Message) -> ResponseResult<()> {
         .select(AllowedChats::as_select())
         .load(conn);
 
-    if chat.is_ok() && chat.unwrap_or_else(|_| Vec::new()).len() > 0 {
-        match msg.from {
-            Some(telegram_user) => update_mate_count(conn, &telegram_user, 1),
-            None => {}
-        };
-    }
+    let emoji = if chat.is_ok() && chat.unwrap_or_else(|_| Vec::new()).len() > 0 {
+        match &msg.from {
+            Some(telegram_user) => {
+                update_mate_count(conn, &telegram_user, 1);
+                String::from("👍")
+            }
+            _ => String::from("👎"),
+        }
+    } else {
+        String::from("👎")
+    };
+
+    let mut reaction = bot.set_reaction(&msg);
+
+    reaction.reaction = Some(vec![ReactionType::Emoji { emoji: emoji }]);
+
+    reaction.await?;
 
     Ok(())
 }
@@ -155,19 +164,18 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
 
             if user.len() > 0 {
                 let user = &user[0];
-                
+
                 bot.send_message(msg.chat.id, format!("You have drunk {} matés", user.count))
-                .await?
+                    .await?
             } else {
                 bot.send_message(msg.chat.id, format!("You have yet to drink an maté"))
-                .await?
+                    .await?
             }
         }
         Command::Add(change) => {
             if !ADMINS.contains(&msg.from.as_ref().unwrap().id.0) {
-                bot.send_message(msg.chat.id, "Not an admin!!")
-                    .await?;
-                return Ok(())
+                bot.send_message(msg.chat.id, "Not an admin!!").await?;
+                return Ok(());
             }
             match msg.reply_to_message() {
                 Some(replied) => {
@@ -180,12 +188,11 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
                         .await?
                 }
             }
-        },
+        }
         Command::Remove(change) => {
             if !ADMINS.contains(&msg.from.as_ref().unwrap().id.0) {
-                bot.send_message(msg.chat.id, "Not an admin!!")
-                    .await?;
-                return Ok(())
+                bot.send_message(msg.chat.id, "Not an admin!!").await?;
+                return Ok(());
             }
             match msg.reply_to_message() {
                 Some(replied) => {
@@ -198,10 +205,15 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
                         .await?
                 }
             }
-        },
+        }
         Command::Source => {
-            bot.send_message(msg.chat.id, format!("See the license for this cool bot over at https://github.com/PadjokeJ/mate_bot"))
-                .await?
+            bot.send_message(
+                msg.chat.id,
+                format!(
+                    "See the license for this cool bot over at https://github.com/PadjokeJ/mate_bot"
+                ),
+            )
+            .await?
         }
     };
     Ok(())
