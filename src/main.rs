@@ -33,10 +33,10 @@ enum Command {
     MyStats,
     #[command(description = "Enable chat to count matés")]
     Enable,
-    #[command(description = "Fact checked TRUE maté by real argentinian patriots")]
-    Add(i32),
-    #[command(description = "Remove a FAKE maté")]
-    Remove(i32),
+    #[command(description = "Fact checked TRUE maté by real argentinian patriots", parse_with = parse_optional_i32)]
+    Add(Option<i32>),
+    #[command(description = "Remove a FAKE maté", parse_with = parse_optional_i32)]
+    Remove(Option<i32>),
     #[command(description = "This bot is licensed AGPL, check out the source code")]
     Source,
 }
@@ -186,6 +186,9 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
                 bot.send_message(msg.chat.id, "Not an admin!!").await?;
                 return Ok(());
             }
+
+            let change = change.unwrap_or(1);
+
             match msg.reply_to_message() {
                 Some(replied) => {
                     update_mate_count(conn, replied.from.as_ref().unwrap(), change);
@@ -203,6 +206,9 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
                 bot.send_message(msg.chat.id, "Not an admin!!").await?;
                 return Ok(());
             }
+
+            let change = change.unwrap_or(1);
+
             match msg.reply_to_message() {
                 Some(replied) => {
                     update_mate_count(conn, replied.from.as_ref().unwrap(), -change);
