@@ -27,7 +27,7 @@ fn parse_optional_i32(i: String) -> Result<(Option<i32>,), ParseError> {
 enum Command {
     #[command(description = "Display this text")]
     Help,
-    #[command(description = "Top statistics", parse_with = parse_optional_i32)]
+    #[command(description = "Top statistics", parse_with = parse_optional_i32, alias = "top")]
     Stats(Option<i32>),
     #[command(description = "My statistics")]
     MyStats,
