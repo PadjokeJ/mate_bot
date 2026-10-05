@@ -39,6 +39,8 @@ enum Command {
     Remove(Option<i32>),
     #[command(description = "This bot is licensed AGPL, check out the source code")]
     Source,
+    #[command(description = "Turns out there is some of it in maté")]
+    Caffeine,
 }
 
 pub fn connect() -> SqliteConnection {
@@ -245,6 +247,17 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
                 ),
             )
             .await?
+        }
+        Command::Caffeine => {
+            let caffeine = mates
+                .order_by(mate_bot::schema::mates::count.desc())
+                .select(Mates::as_select())
+                .load(conn)
+                .unwrap()
+                .iter()
+                .fold(0, |total, m| total + 85 * m.count);
+
+            bot.send_message(msg.chat.id, format!("Using state of the art \"\"maths\"\", I arrive at the conclusion that about {}[mg] of caffeine has been consumed", caffeine)).await?
         }
     };
     Ok(())
