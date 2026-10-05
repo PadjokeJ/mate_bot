@@ -4,13 +4,20 @@ use std::env;
 use teloxide::prelude::*;
 use teloxide::sugar::bot::BotMessagesExt;
 use teloxide::types::{ReactionType, User};
-use teloxide::utils::command::BotCommands;
+use teloxide::utils::command::{BotCommands, ParseError};
 
 use mate_bot::models::*;
 use mate_bot::schema::allowed_chats::dsl::*;
 use mate_bot::schema::mates::dsl::*;
 
 const ADMINS: &'static [u64] = &[8322506629];
+
+fn parse_optional_i32(i: String) -> Result<(Option<i32>,), ParseError> {
+    match i.trim().parse::<i32>() {
+        Ok(i) => Ok((Some(i),)),
+        Err(_) => Ok((None,))
+    }
+}
 
 #[derive(BotCommands, Clone)]
 #[command(
@@ -20,8 +27,8 @@ const ADMINS: &'static [u64] = &[8322506629];
 enum Command {
     #[command(description = "Display this text")]
     Help,
-    #[command(description = "Top statistics")]
-    Stats(i32),
+    #[command(description = "Top statistics", parse_with = parse_optional_i32)]
+    Stats(Option<i32>),
     #[command(description = "My statistics")]
     MyStats,
     #[command(description = "Enable chat to count matés")]
@@ -112,6 +119,8 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
         Command::Stats(c) => {
             let mut lb: String = String::new();
             let mut j = 1;
+
+            let c = c.unwrap_or(10);
 
             for i in mates
                 .order_by(mate_bot::schema::mates::count.desc())
