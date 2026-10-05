@@ -15,7 +15,7 @@ const ADMINS: &'static [u64] = &[8322506629];
 fn parse_optional_i32(i: String) -> Result<(Option<i32>,), ParseError> {
     match i.trim().parse::<i32>() {
         Ok(i) => Ok((Some(i),)),
-        Err(_) => Ok((None,))
+        Err(_) => Ok((None,)),
     }
 }
 
@@ -192,6 +192,14 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
             match msg.reply_to_message() {
                 Some(replied) => {
                     update_mate_count(conn, replied.from.as_ref().unwrap(), change);
+
+                    let mut reaction = bot.set_reaction(replied);
+                    reaction.reaction = Some(vec![ReactionType::Emoji {
+                        emoji: String::from("👍"),
+                    }]);
+
+                    reaction.await?;
+
                     bot.send_message(msg.chat.id, format!("Added {} maté to user", change))
                         .await?
                 }
@@ -212,6 +220,14 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
             match msg.reply_to_message() {
                 Some(replied) => {
                     update_mate_count(conn, replied.from.as_ref().unwrap(), -change);
+
+                    let mut reaction = bot.set_reaction(replied);
+                    reaction.reaction = Some(vec![ReactionType::Emoji {
+                        emoji: String::from("👎"),
+                    }]);
+
+                    reaction.await?;
+
                     bot.send_message(msg.chat.id, format!("Removed {} maté from user", change))
                         .await?
                 }
