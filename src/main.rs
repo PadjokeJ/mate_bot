@@ -257,7 +257,7 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
                 .iter()
                 .fold(0, |total, m| total + 85 * m.count);
 
-            bot.send_message(msg.chat.id, format!("Using state of the art \"\"maths\"\", I arrive at the conclusion that about {}[mg] of caffeine has been consumed", caffeine)).await?
+            bot.send_message(msg.chat.id, format!("Using state of the art \"\"maths\"\", I arrive at the conclusion that about {}[mg] of caffeine have been consumed", caffeine)).await?
         }
     };
     Ok(())
