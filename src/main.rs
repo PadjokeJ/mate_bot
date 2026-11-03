@@ -62,12 +62,17 @@ fn update_mate_count(conn: &mut SqliteConnection, telegram_user: &User, change: 
                 .set(mate_bot::schema::mates::count.eq(count + change))
                 .execute(conn)
                 .unwrap();
+
+            diesel::update(mates.find(u.id))
+                .set(mate_bot::schema::mates::display_name.eq(telegram_user.full_name()))
+                .execute(conn)
+                .unwrap();
         }
         _ => {
             println!("creating initial maté");
             let new_data = Mates {
                 id: user_id,
-                display_name: telegram_user.full_name().to_string(),
+                display_name: telegram_user.full_name(),
                 count: change,
             };
 
