@@ -202,8 +202,15 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
 
                     reaction.await?;
 
-                    bot.send_message(msg.chat.id, format!("Added {} maté to user", change))
-                        .await?
+                    bot.send_message(
+                        msg.chat.id,
+                        format!(
+                            "Added {} maté to {}",
+                            change,
+                            replied.from.as_ref().unwrap().full_name()
+                        ),
+                    )
+                    .await?
                 }
                 None => {
                     bot.send_message(msg.chat.id, "Please reply to the target user")
@@ -230,8 +237,15 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
 
                     reaction.await?;
 
-                    bot.send_message(msg.chat.id, format!("Removed {} maté from user", change))
-                        .await?
+                    bot.send_message(
+                        msg.chat.id,
+                        format!(
+                            "Removed {} maté from {}",
+                            change,
+                            replied.from.as_ref().unwrap().full_name()
+                        ),
+                    )
+                    .await?
                 }
                 None => {
                     bot.send_message(msg.chat.id, "Please reply to the target user")
