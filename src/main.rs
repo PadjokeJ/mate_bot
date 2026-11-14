@@ -41,6 +41,8 @@ enum Command {
     Source,
     #[command(description = "Turns out there is some of it in maté")]
     Caffeine,
+    #[command(description = "Please stop trolling I beg of ye")]
+    Total,
 }
 
 pub fn connect() -> SqliteConnection {
@@ -129,13 +131,7 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
 
             let c = c.unwrap_or(10);
 
-            for i in mates
-                .order_by(mate_bot::schema::mates::count.desc())
-                .limit(c as i64)
-                .select(Mates::as_select())
-                .load(conn)
-                .unwrap()
-            {
+            for i in Mates::rows(conn, c as i64) {
                 let line = format!("{j}: {} -- {}\n", i.display_name, i.count);
                 lb.push_str(line.as_str());
                 j += 1;
@@ -268,15 +264,19 @@ async fn command_handler(bot: Bot, msg: Message, cmd: Command) -> ResponseResult
             .await?
         }
         Command::Caffeine => {
-            let caffeine = mates
-                .order_by(mate_bot::schema::mates::count.desc())
-                .select(Mates::as_select())
-                .load(conn)
-                .unwrap()
-                .iter()
-                .fold(0, |total, m| total + 85 * m.count);
+            let caffeine = Mates::total_count(conn) * 85;
 
             bot.send_message(msg.chat.id, format!("Using state of the art \"\"maths\"\", I arrive at the conclusion that about {}[mg] of caffeine have been consumed", caffeine)).await?
+        }
+        Command::Total => {
+            bot.send_message(
+                msg.chat.id,
+                format!(
+                    "Truth be foretold, we are currently at {} matés",
+                    Mates::total_count(conn)
+                ),
+            )
+            .await?
         }
     };
     Ok(())
