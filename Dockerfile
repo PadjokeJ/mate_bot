@@ -23,6 +23,4 @@ WORKDIR /app
 
 COPY --from=builder /app/target/release/mate_bot /app/mate_bot
 
-USER 1000
-
 CMD ["/app/mate_bot"]
